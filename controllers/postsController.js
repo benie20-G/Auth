@@ -39,6 +39,9 @@ exports.getSinglePost = async (req, res) => {
         path:'userId',
         select:'email'
     })
+    if(!post){
+        res.status(404).send({message: "No post with such id"})
+    }
     return res.status(200).json({
         success: true,
         data: post
@@ -74,6 +77,78 @@ exports.createPost = async (req, res) => {
         
     } catch (error) {
         console.log(error);  
+    }
+
+}
+
+exports.updatePost = async (req, res) => {
+    const { _id } = req.query;
+    const {title,description} = req.body
+    const {userId} = req.user
+    try {
+        const {error,value} = await postSchema.validate({title,description,userId})
+        if(error){
+            return res.status(400).json({
+                success:false,
+                message: error.details[0].message
+            })
+        }
+     
+        const existingPost = await Post.findOne({_id})
+        if(!existingPost){
+            return res.status(404).json({
+                success:false,
+                message: "post not found"
+            })
+        }
+        if(existingPost.userId.toString() !== userId){
+            return res.status(403).json({
+                message: "unauthorized to update this post"} 
+            )
+        }
+        existingPost.title = title
+        existingPost.description = description
+        const result = await existingPost.save()
+        
+        return res.status(201).json({
+            success:true,
+            message:"Updated successfully",
+            data:result
+        })
+
+    } catch (error) {
+console.log(error)
+        
+    }
+
+}
+exports.deletePost = async (req, res) => {
+    const { _id } = req.query;
+    const {userId} = req.user
+    try {
+     
+        const existingPost = await Post.findOne({_id})
+        if(!existingPost){
+            return res.status(404).json({
+                success:false,
+                message: "post arleady unavailable"
+            })
+        }
+        
+        if(existingPost.userId.toString() !== userId){
+            return res.status(403).json({
+                message: "unauthorized"} 
+            )
+        }
+        await Post.deleteOne({_id})    
+        return res.status(201).json({
+            success:true,
+            message:"deleted successfully",
+        })
+
+    } catch (error) {
+console.log(error)
+        
     }
 
 }
