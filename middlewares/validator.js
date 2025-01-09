@@ -43,3 +43,9 @@ exports.acceptFPCodeSchema = Joi.object({
     newPassword: Joi.string().required().pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$'))
 
 })
+
+exports.postSchema = Joi.object({
+    title: Joi.string().min(6).max(50).required(),
+    description:Joi.string().min(6).max(500).required(),
+    userId: Joi.string().required()
+})

@@ -5,7 +5,7 @@
 
     // Check if the request is from a non-browser client
     if (req.headers.client === 'not-browser') {
-        token = req.headers['authorization'];
+        token = req.headers['Authorization'];
         console.log(token);
     } else {
         token = req.cookies?.Authorization;
@@ -33,15 +33,3 @@
         return res.status(401).json({ success: false, message: "Invalid token" });
     }
 };
-
- exports.changePassword = (req, res)=>{
-    const { userId, verified} =  req.user;
-    const {oldPassword, newPassword} = req.body 
-
-    try {
-        
-        
-    } catch (error) {
-        
-    }
- }
