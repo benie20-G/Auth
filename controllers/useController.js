@@ -4,6 +4,7 @@ const {
   loginSchema,
   changePasswordSchema,
   acceptCodeSchema,
+  acceptFPCodeSchema,
 } = require("../middlewares/validator");
 const User = require("../models/userModel");
 const { dohash, dohashcompare, hmacProcess } = require("../utils/hasher");
@@ -254,17 +255,11 @@ exports.sendForgotPasswordCode = async (req, res) => {
           .json({ success: false, message: "user does not exist" });
       }
   
-      if (existingUser.verified) {
-        return res
-          .status(400)
-          .json({ success: false, message: "you are already verified" });
-      }
-  
       const codeValue = Math.floor(Math.random() * 1000000).toString();
       let info = await transport.sendMail({
         from: process.env.NODE_CODE_SENDING_EMAIL_ADDRESS,
         to: existingUser.email,
-        subject: "Verificatio code",
+        subject: "Password reset code",
         html: "<h1>" + codeValue + "</h1>",
       });
       if (info.accepted[0] === existingUser.email) {
@@ -272,13 +267,13 @@ exports.sendForgotPasswordCode = async (req, res) => {
           codeValue,
           process.env.HMAC_VERIFICATION_CODE_SECRET
         );
-        existingUser.verificationCode = hashedCodeValue;
-        existingUser.verificationCodeValidation = Date.now();
+        existingUser.forgotPasswordCode = hashedCodeValue;
+        existingUser.forgotPasswordCodeValidation = Date.now();
         const result = await existingUser.save();
   
         return res
           .status(200)
-          .json({ success: true, message: "code sent", data: result });
+          .json({ success: true, message: "code has been sent", data: result });
       }
       res.status(400).json({ success: false, message: "failed to send code" });
     } catch (error) {
@@ -287,10 +282,10 @@ exports.sendForgotPasswordCode = async (req, res) => {
   };
   
   exports.verifyForgotPasswordCode = async (req, res) => {
-    const { email, providedCode } = req.body;
+    const { email, providedCode, newPassword } = req.body;
   
     try {
-      const { error, value } = acceptCodeSchema.validate({ email, providedCode });
+      const { error, value } = acceptFPCodeSchema.validate({ email, providedCode,newPassword });
       if (error) {
         return res
           .status(400)
@@ -299,32 +294,26 @@ exports.sendForgotPasswordCode = async (req, res) => {
   
       const codeValue = providedCode.toString();
       const existingUser = await User.findOne({ email }).select(
-        "+verificationCode +verificationCodeValidation"
-      );
+        "+forgotPasswordCode +forgotPasswordCodeValidation");
   
+      console.log(existingUser.forgotPasswordCode, existingUser.forgotPasswordCodeValidation);
       if (!existingUser) {
         return res
           .status(404)
           .json({ success: false, message: "user does not exist" });
       }
+
   
-      if (existingUser.verified) {
-        return res
-          .status(400)
-          .json({ success: false, message: " your account is arleady verified" });
-      }
-      console.log(existingUser.verificationCode);
-      console.log(existingUser.verificationCodeValidation);
       if (
-        !existingUser.verificationCode ||
-        !existingUser.verificationCodeValidation
+        !existingUser.forgotPasswordCode ||
+        !existingUser.forgotPasswordCodeValidation
       ) {
         return res
           .status(400)
-          .json({ success: false, message: "somethin is wrong with the code" });
+          .json({ success: false, message: "something is wrong with the code"});
       }
   
-      if (Date.now() - existingUser.verificationCodeValidation > 5 * 60 * 10000) {
+      if (Date.now() - existingUser.forgotPasswordCodeValidation > 5 * 60 * 10000) {
         return res
           .status(400)
           .json({ success: false, message: "code has been expired" });
@@ -335,15 +324,17 @@ exports.sendForgotPasswordCode = async (req, res) => {
         process.env.HMAC_VERIFICATION_CODE_SECRET
       );
   
-      if (hashedCodeValue === existingUser.verificationCode) {
-        existingUser.verified = true;
-        existingUser.verificationCode = undefined;
-        existingUser.verificationCodeValidation = undefined;
+      if (hashedCodeValue === existingUser.forgotPasswordCode) {
+        const hashedPassword = await dohash(newPassword, 15);
+        existingUser.password = hashedPassword;
+        existingUser.forgotPasswordCode = undefined;
+        existingUser.forgotPasswordCodeValidation = undefined;     
+      
         await existingUser.save();
   
         res
           .status(200)
-          .json({ success: true, message: "your account has been verified" });
+          .json({ success: true, message: "your password has beed reset" });
       } else {
         return res
           .status(400)
